@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -22,6 +23,13 @@ def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
 
 
+# 1. Define the lifespan context manager (replaces @app.on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    yield
+
+
 def get_session():
     with Session(engine) as session:
         yield session
@@ -29,12 +37,11 @@ def get_session():
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-app = FastAPI()
+# 2. Pass lifespan right into FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
+# (Notice: The old @app.on_event("startup") block is completely gone!)
 
 
 @app.post("/heroes/")
